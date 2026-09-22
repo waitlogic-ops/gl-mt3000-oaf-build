@@ -1,0 +1,4 @@
+openwrt/
+evidence/
+dist/
+__pycache__/

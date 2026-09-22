@@ -1,0 +1,96 @@
+name: Build ABI-verified GL-MT3000 kmod-oaf
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: mt3000-oaf
+  cancel-in-progress: false
+env:
+  OPENWRT_COMMIT: f5dae5ece4805730c5e2850f8aa84765af2f6b32
+  OAF_COMMIT: b88fcb082597486a816187ec1e02812082161d5e
+  EXPECTED_ABI: 9469a6c8c449c47e503c05678ea1559d
+  EXPECTED_KERNEL: 6.12.94
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev python3 python3-setuptools rsync swig unzip zlib1g-dev file wget zstd libelf-dev dwarves kmod jq
+          mkdir -p evidence dist
+      - name: Prepare pinned source and official vendor configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init openwrt
+          git -C openwrt remote add origin https://github.com/openwrt/openwrt.git
+          git -C openwrt fetch --depth 1 origin "$OPENWRT_COMMIT"
+          git -C openwrt checkout --detach FETCH_HEAD
+          test "$(git -C openwrt rev-parse HEAD)" = "$OPENWRT_COMMIT"
+          cp configs/feeds.buildinfo openwrt/feeds.conf
+          # Public vendor feed at the date of the official config publication.
+          echo 'src-git gl https://github.com/gl-inet/gl-feeds.git^c4323bcd7df9fedfb3de815664ed50fcb9efd35e' >> openwrt/feeds.conf
+          cd openwrt
+          ./scripts/feeds update -a 2>&1 | tee ../evidence/feeds-update.log
+          ./scripts/feeds install -a 2>&1 | tee ../evidence/feeds-install.log
+          git clone --depth 1 --branch v7.0.1 https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
+          test "$(git -C package/OpenAppFilter rev-parse HEAD)" = "$OAF_COMMIT"
+          cp ../configs/config_mt3000_4.9.1-op25 .config
+          echo 'CONFIG_PACKAGE_kmod-oaf=m' >> .config
+          make defconfig 2>&1 | tee ../evidence/defconfig.log
+          cp .config ../evidence/openwrt.config
+          cp feeds.conf ../evidence/feeds.conf
+          ./scripts/diffconfig.sh > ../evidence/config.diff
+          git rev-parse HEAD > ../evidence/openwrt-commit.txt
+          git -C package/OpenAppFilter rev-parse HEAD > ../evidence/oaf-commit.txt
+          python3 ../scripts/config-audit.py ../configs/config_mt3000_4.9.1-op25 .config > ../evidence/config-normalization.txt
+      - name: Check native kernel ABI before expensive compilation
+        run: bash scripts/abi-preflight.sh
+      - uses: actions/cache@v4
+        with:
+          path: openwrt/dl
+          key: openwrt-downloads-${{ env.OPENWRT_COMMIT }}
+      - name: Build prerequisites and kernel (no firmware image)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd openwrt
+          make tools/install -j$(nproc) V=s 2>&1 | tee ../evidence/tools.log
+          make toolchain/install -j$(nproc) V=s 2>&1 | tee ../evidence/toolchain.log
+          make target/linux/compile -j$(nproc) V=s 2>&1 | tee ../evidence/kernel.log
+          kernel_dir=$(find build_dir -type d -name linux-6.12.94 -print -quit)
+          test -n "$kernel_dir"
+          cp "$kernel_dir/.config" ../evidence/kernel.config
+          cp "$kernel_dir/.config.set" ../evidence/kernel.config.set
+          cp "$kernel_dir/.vermagic" ../evidence/kernel.vermagic
+          cp "$kernel_dir/Module.symvers" ../evidence/Module.symvers
+          test "$(cat "$kernel_dir/.vermagic")" = "$EXPECTED_ABI"
+          test "$(grep '=[ym]' "$kernel_dir/.config.set" | LC_ALL=C sort | md5sum | cut -d ' ' -f1)" = "$EXPECTED_ABI"
+          test "$(make -s -C "$kernel_dir" kernelversion)" = "$EXPECTED_KERNEL"
+      - name: Compile only OAF package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd openwrt
+          make package/OpenAppFilter/oaf/compile V=s -j1 2>&1 | tee ../evidence/oaf-build.log
+          bash ../scripts/verify-package.sh
+      - name: Upload verified APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kmod-oaf-GL-MT3000-4.9.1-op25-9469a6c8
+          path: dist/
+          if-no-files-found: error
+      - name: Upload diagnostic evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-evidence-${{ github.run_attempt }}
+          path: evidence/
+          include-hidden-files: true
+          if-no-files-found: warn
