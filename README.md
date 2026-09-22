@@ -1,5 +1,13 @@
 # GL-MT3000 OpenAppFilter kernel module build
 
+**Current result: blocked at the ABI gate; no compatible APK has been produced.**
+The [native configuration run](https://github.com/waitlogic-ops/gl-mt3000-oaf-build/actions/runs/35705066517)
+successfully executed OpenWrt's original kernel configuration recipe and generated
+`1f6665bb4c86de9e6929ce479d68f6da`, not the required
+`9469a6c8c449c47e503c05678ea1559d`. The separate read-only preflight output was
+byte-for-byte identical to the native `.config.set`. OAF compilation was therefore
+not started and no APK was uploaded. The artifact contains diagnostic evidence only.
+
 Target: GL.iNet 4.9.1-op25, OpenWrt 25.12.5, Linux 6.12.94,
 kernel package ABI `9469a6c8c449c47e503c05678ea1559d`.
 
@@ -29,3 +37,21 @@ identical (same SHA-256 above). Installation/loading will be tested by the user.
 The workflow also runs the unmodified native `Kernel/Configure/Default` recipe and
 compares its output to the preflight calculation. Release SDK host utilities and
 compiler may be used for this diagnostic; no SDK kernel configuration is imported.
+
+## Additional vendor evidence
+
+`research/vendor-reference/provenance.json` records the exact official firmware and
+official `kmod-ikconfig` package inspected. The extracted firmware confirms
+4.9.1-op25 / r33051-f5dae5ece4 and the requested installed kernel package string.
+`kernel-6.12.94.config` is the complete expanded kernel config extracted read-only
+from the official feed's `configs.ko`. It is reference evidence, not a build input
+and not the `.config.set` that OpenWrt hashes. Reproduce extraction with
+`scripts/extract-reference-config.py` and the SHA-256-pinned reference package.
+
+This reference config enables `CONFIG_SECURITY_GL_HW_CHECK=y`; the pinned public
+OpenWrt source does not contain its Kconfig definition or implementation. GL.iNet's
+public `gl-image` sources inspected provide this feature for other models with a
+5.4 kernel, not a verified matching MT3000 6.12.94 patch set. The matching vendor
+source/patch set, feed pins and original ABI-generation inputs or matching official
+SDK are still needed. Replacing the ABI string alone would not establish compatibility
+and is deliberately prohibited in this workflow.

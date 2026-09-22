@@ -1,0 +1,8 @@
+{
+  "firmware_url": "https://fw.gl-inet.com/firmware/mt3000-open/testing/mt3000-op-4.9.1-op25_beta3-1035-0721-1784638698.bin",
+  "firmware_sha256": "5c15e3a5492c5ad5cb6015b200d18799b0d942ab7915e00eeeb60709495ab353",
+  "ikconfig_url": "https://fw.gl-inet.com/releases/v25.x/v25.12.5/mediatek/filogic/packages/kmod-ikconfig-6.12.94-r1.apk",
+  "ikconfig_sha256": "becf43031c16ee169bbd09f6ee7e5bee3caa4dabd24883e9ba70e436b84bbe0e",
+  "kernel_config_sha256": "8ed07843b5911dd36676244066ed9ba35253d26de559e9246c858112d7ab5776",
+  "note": "Reference evidence from official firmware/feed. Expanded kernel config is not .config.set; its hash is not the package ABI. It has NOT been substituted into the build or used to override .vermagic."
+}
