@@ -4,3 +4,6 @@
 audit-kernel-config: $(STAMP_CONFIGURED)
 	@echo "Native kernel configuration: $(LINUX_DIR)"
 	@cat $(LINUX_DIR)/.vermagic
+
+.PHONY: build-kernel-modules
+build-kernel-modules: $(LINUX_DIR)/.modules

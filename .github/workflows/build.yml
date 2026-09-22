@@ -1,4 +1,4 @@
-name: Build ABI-verified GL-MT3000 kmod-oaf
+name: Compile GL-MT3000 OAF from supplied configuration
 on:
   workflow_dispatch:
   push:
@@ -22,7 +22,7 @@ jobs:
       - name: Install build prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev python3 python3-setuptools rsync swig unzip zlib1g-dev file wget zstd libelf-dev dwarves kmod jq
+          sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev python3 python3-setuptools rsync swig unzip zlib1g-dev file wget zstd libelf-dev dwarves kmod jq bc
           mkdir -p evidence dist
       - name: Prepare pinned source and official vendor configuration
         shell: bash
@@ -68,40 +68,40 @@ jobs:
           cp "$kernel_dir/.config.set" ../evidence/kernel.config.set.native
           cp "$kernel_dir/.vermagic" ../evidence/kernel.vermagic.native
           git diff --exit-code -- include/kernel-defaults.mk include/kernel.mk include/package-pack.mk
-      - name: Check native kernel ABI before expensive compilation
+      - name: Record native kernel ABI without blocking compilation
         run: bash scripts/abi-preflight.sh
       - uses: actions/cache@v4
         with:
           path: openwrt/dl
           key: openwrt-downloads-${{ env.OPENWRT_COMMIT }}
-      - name: Build prerequisites and kernel (no firmware image)
+      - name: Compile kernel and module prerequisites using prepared toolchain
         shell: bash
         run: |
           set -euo pipefail
           cd openwrt
-          make tools/install -j$(nproc) V=s 2>&1 | tee ../evidence/tools.log
-          make toolchain/install -j$(nproc) V=s 2>&1 | tee ../evidence/toolchain.log
-          make target/linux/compile -j$(nproc) V=s 2>&1 | tee ../evidence/kernel.log
+          export PATH="$PWD/staging_dir/host/bin:$PATH"
+          make -C target/linux/mediatek -f Makefile -f "$GITHUB_WORKSPACE/scripts/audit-kernel.mk" TOPDIR="$PWD" TARGET_BUILD=1 build-kernel-modules V=s -j$(nproc) 2>&1 | tee ../evidence/kernel.log
           kernel_dir=$(find build_dir -type d -name linux-6.12.94 -print -quit)
           test -n "$kernel_dir"
           cp "$kernel_dir/.config" ../evidence/kernel.config
           cp "$kernel_dir/.config.set" ../evidence/kernel.config.set
           cp "$kernel_dir/.vermagic" ../evidence/kernel.vermagic
           cp "$kernel_dir/Module.symvers" ../evidence/Module.symvers
-          test "$(cat "$kernel_dir/.vermagic")" = "$EXPECTED_ABI"
-          test "$(grep '=[ym]' "$kernel_dir/.config.set" | LC_ALL=C sort | md5sum | cut -d ' ' -f1)" = "$EXPECTED_ABI"
+          test "$(cat "$kernel_dir/.vermagic")" = "$(cat ../evidence/kernel-abi-preflight.txt)"
+          test "$(grep '=[ym]' "$kernel_dir/.config.set" | LC_ALL=C sort | md5sum | cut -d ' ' -f1)" = "$(cat "$kernel_dir/.vermagic")"
           test "$(make -s -C "$kernel_dir" kernelversion)" = "$EXPECTED_KERNEL"
       - name: Compile only OAF package
         shell: bash
         run: |
           set -euo pipefail
           cd openwrt
-          make package/OpenAppFilter/oaf/compile V=s -j1 2>&1 | tee ../evidence/oaf-build.log
+          export PATH="$PWD/staging_dir/host/bin:$PATH"
+          make -C package/OpenAppFilter/oaf TOPDIR="$PWD" compile V=s -j1 2>&1 | tee ../evidence/oaf-build.log
           bash ../scripts/verify-package.sh
-      - name: Upload verified APK
+      - name: Upload compiled APK with actual ABI report
         uses: actions/upload-artifact@v4
         with:
-          name: kmod-oaf-GL-MT3000-4.9.1-op25-9469a6c8
+          name: kmod-oaf-compiled-candidate-GL-MT3000
           path: dist/
           if-no-files-found: error
       - name: Upload diagnostic evidence even on failure

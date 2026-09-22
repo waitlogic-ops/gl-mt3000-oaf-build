@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Reproduce include/kernel-defaults.mk's .config.set calculation read-only.
-# This is an early rejection gate; the real build's .vermagic is checked again.
+# Report mismatches without stopping the user-requested actual compilation.
 set -euo pipefail
 cd openwrt
 out=../evidence
@@ -19,6 +19,5 @@ test "$actual" = "$(cat "$out/kernel.vermagic.native")"
 printf '%s\n' "$actual" | tee "$out/kernel-abi-preflight.txt"
 printf 'OpenWrt: %s\nExpected kernel: %s\nExpected ABI: %s\nComputed ABI: %s\n' "$OPENWRT_COMMIT" "$EXPECTED_KERNEL" "$EXPECTED_ABI" "$actual" | tee "$out/summary.txt" >> "$GITHUB_STEP_SUMMARY"
 if [[ "$actual" != "$EXPECTED_ABI" ]]; then
-  echo "::error::Official published config and public feeds do not reproduce the required ABI. No APK will be published."
-  exit 1
+  echo "::warning::Native ABI differs from device. Continue compiling; label output as a candidate, not verified compatible."
 fi
