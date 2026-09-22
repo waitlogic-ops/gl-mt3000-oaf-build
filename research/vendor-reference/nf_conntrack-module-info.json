@@ -1,0 +1,9 @@
+{
+  "file": "nf_conntrack.ko",
+  "struct_module_section_size": 1216,
+  "modinfo": [
+    "depends=nf_defrag_ipv4,nf_defrag_ipv6",
+    "name=nf_conntrack",
+    "vermagic=6.12.94 SMP mod_unload aarch64"
+  ]
+}

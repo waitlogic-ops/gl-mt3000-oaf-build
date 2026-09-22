@@ -1,6 +1,12 @@
 # GL-MT3000 OpenAppFilter kernel module build
 
-**Current result: blocked at the ABI gate; no compatible APK has been produced.**
+**Current work: compiling an explicitly labelled candidate APK at the user's request.**
+ABI mismatches are recorded without blocking compilation. Metadata must retain the
+native build ABI; no dependency or vermagic override is applied. A candidate with an
+ABI mismatch is not a verified-compatible result and does not satisfy the original
+strict matching requirement. Hardware testing is left to the user.
+
+Previous diagnostic result:
 The [native configuration run](https://github.com/waitlogic-ops/gl-mt3000-oaf-build/actions/runs/35705066517)
 successfully executed OpenWrt's original kernel configuration recipe and generated
 `1f6665bb4c86de9e6929ce479d68f6da`, not the required
@@ -22,14 +28,16 @@ Build inputs:
 - Pinned OpenWrt release feeds plus public GL feed as of configuration publication.
   This public feed is a candidate, not an assertion of GL.iNet's private build inputs.
 
-The workflow rejects mismatched native configuration hashes before spending time
-compiling. It builds tools, toolchain, kernel prerequisites and only the OAF package;
-it does not build a complete firmware image. It checks the actual build hash again
-and checks APK metadata before uploading any installable result. No hash override,
+The workflow records native configuration hashes and proceeds to actual compilation.
+It uses checksum-verified release host utilities/toolchain, builds the kernel
+prerequisites with the supplied config and builds only the OAF package; it does not
+build a complete firmware image. It checks the actual build hash again and verifies
+that APK metadata preserves that hash. No hash override,
 dependency rewriting, force install or installed-database modification is allowed.
 
 `build-evidence-*` artifacts are diagnostics, **not successful installable output**.
-Only `kmod-oaf-GL-MT3000-4.9.1-op25-9469a6c8` contains an APK that passed gates.
+`kmod-oaf-compiled-candidate-GL-MT3000` contains the compiled APK and `oaf.ko`, plus
+metadata, hashes and an `ABI-MISMATCH.txt` marker when the device dependency differs.
 Hardware installation/loading remains a separate required validation step.
 
 The user-supplied ZIP was checked against the official CDN copy and is byte-for-byte
