@@ -96,6 +96,12 @@ jobs:
           set -euo pipefail
           cd openwrt
           export PATH="$PWD/staging_dir/host/bin:$PATH"
+          # Build the native package records for OAF's transitive dependencies.
+          # The kernel step has already compiled these modules. Do not bypass
+          # dependency checks or synthesize .provides files.
+          for dependency in kernel kmod-nf-reject kmod-nf-ipt kmod-nf-log kmod-nf-conntrack kmod-ipt-core kmod-ipt-conntrack; do
+            make -C package/kernel/linux TOPDIR="$PWD" "$PWD/staging_dir/target-aarch64_cortex-a53_musl/pkginfo/$dependency.provides" V=s -j1 2>&1 | tee -a ../evidence/dependency-packaging.log
+          done
           make -C package/OpenAppFilter/oaf TOPDIR="$PWD" compile V=s -j1 2>&1 | tee ../evidence/oaf-build.log
           bash ../scripts/verify-package.sh
       - name: Upload compiled APK with actual ABI report
@@ -104,6 +110,13 @@ jobs:
           name: kmod-oaf-compiled-candidate-GL-MT3000
           path: dist/
           if-no-files-found: error
+      - name: Preserve compiled files for diagnosis even if verification fails
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p evidence/unverified-build-output
+          find openwrt/bin -name 'kmod-oaf-*.apk' -exec cp {} evidence/unverified-build-output/ \; 2>/dev/null || true
+          find openwrt/build_dir -path '*/oaf/oaf.ko' -exec cp {} evidence/unverified-build-output/ \; 2>/dev/null || true
       - name: Upload diagnostic evidence even on failure
         if: always()
         uses: actions/upload-artifact@v4

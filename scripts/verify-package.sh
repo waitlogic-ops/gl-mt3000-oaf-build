@@ -3,7 +3,7 @@ set -euo pipefail
 mapfile -t packages < <(find bin -name 'kmod-oaf-6.12.94-r1.apk')
 test "${#packages[@]}" -eq 1
 apk_file=${packages[0]}
-apk_tool=$(find staging_dir/host/bin -name apk -type f -print -quit)
+apk_tool=$(find -L staging_dir/host/bin -name apk -type f -print -quit)
 test -n "$apk_tool"
 "$apk_tool" adbdump "$apk_file" > ../evidence/apk-metadata.txt
 cat ../evidence/apk-metadata.txt
