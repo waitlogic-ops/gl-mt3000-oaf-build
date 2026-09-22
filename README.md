@@ -1,10 +1,12 @@
 # GL-MT3000 OpenAppFilter kernel module build
 
-**Current work: compiling an explicitly labelled candidate APK at the user's request.**
-ABI mismatches are recorded without blocking compilation. Metadata must retain the
-native build ABI; no dependency or vermagic override is applied. A candidate with an
-ABI mismatch is not a verified-compatible result and does not satisfy the original
-strict matching requirement. Hardware testing is left to the user.
+**Current work: user-requested vendor hash workaround test build.**
+The user supplied a GL.iNet reply recommending overriding the generated `.vermagic`
+and explicitly requested this approach. `scripts/apply-vendor-hash.py` changes only
+that recipe: it preserves the computed hash as `.vermagic.native` and writes
+`9469a6c8c449c47e503c05678ea1559d` to `.vermagic` before compilation and packaging.
+This supersedes the initial no-override build mode. The APK is a test build, not a
+claim that the original config hash was reproduced or hardware compatibility proven.
 
 Previous diagnostic result:
 The [native configuration run](https://github.com/waitlogic-ops/gl-mt3000-oaf-build/actions/runs/35705066517)
@@ -28,23 +30,22 @@ Build inputs:
 - Pinned OpenWrt release feeds plus public GL feed as of configuration publication.
   This public feed is a candidate, not an assertion of GL.iNet's private build inputs.
 
-The workflow records native configuration hashes and proceeds to actual compilation.
-It uses checksum-verified release host utilities/toolchain, builds the kernel
-prerequisites with the supplied config and builds only the OAF package; it does not
-build a complete firmware image. It checks the actual build hash again and verifies
-that APK metadata preserves that hash. No hash override,
-dependency rewriting, force install or installed-database modification is allowed.
+The workflow uses checksum-verified release host utilities/toolchain, builds the
+kernel prerequisites with the supplied config, packages OAF's required in-tree module
+dependencies, and builds OAF. It does not build a complete firmware image. No SDK
+kernel configuration is imported. The vendor hash override patch is saved and checked
+against the pinned upstream recipe; the computed config hash is independently verified.
 
-`build-evidence-*` artifacts are diagnostics, **not successful installable output**.
-`kmod-oaf-compiled-candidate-GL-MT3000` contains the compiled APK and `oaf.ko`, plus
-metadata, hashes and an `ABI-MISMATCH.txt` marker when the device dependency differs.
-Hardware installation/loading remains a separate required validation step.
+`kmod-oaf-GL-MT3000-vendor-hash-test` contains the APK, `oaf.ko`, supplied/resolved build
+configuration evidence, metadata, module information, checksums and the override patch.
+`HASH-OVERRIDE-TEST-BUILD.txt` explicitly records both hashes and the unverified hardware
+status. `build-evidence-*` contains detailed diagnostics, including any unverified output
+retained after a failed verification. APK metadata must contain the exact requested
+dependency `kernel=6.12.94~9469a6c8c449c47e503c05678ea1559d-r1`.
 
 The user-supplied ZIP was checked against the official CDN copy and is byte-for-byte
-identical (same SHA-256 above). Installation/loading will be tested by the user.
-The workflow also runs the unmodified native `Kernel/Configure/Default` recipe and
-compares its output to the preflight calculation. Release SDK host utilities and
-compiler may be used for this diagnostic; no SDK kernel configuration is imported.
+identical (same SHA-256 above). Installation, loading and operation will be tested by
+the user. No force-install flags or installed-database edits are used.
 
 ## Additional vendor evidence
 
@@ -62,4 +63,4 @@ public `gl-image` sources inspected provide this feature for other models with a
 5.4 kernel, not a verified matching MT3000 6.12.94 patch set. The matching vendor
 source/patch set, feed pins and original ABI-generation inputs or matching official
 SDK are still needed. Replacing the ABI string alone would not establish compatibility
-and is deliberately prohibited in this workflow.
+even when the override is explicitly requested as in this test workflow.

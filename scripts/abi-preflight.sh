@@ -17,7 +17,8 @@ actual=$(grep '=[ym]' "$out/kernel.config.set.preflight" | LC_ALL=C sort | md5su
 cmp "$out/kernel.config.set.preflight" "$out/kernel.config.set.native"
 test "$actual" = "$(cat "$out/kernel.vermagic.native")"
 printf '%s\n' "$actual" | tee "$out/kernel-abi-preflight.txt"
-printf 'OpenWrt: %s\nExpected kernel: %s\nExpected ABI: %s\nComputed ABI: %s\n' "$OPENWRT_COMMIT" "$EXPECTED_KERNEL" "$EXPECTED_ABI" "$actual" | tee "$out/summary.txt" >> "$GITHUB_STEP_SUMMARY"
+test "$(cat "$out/kernel.vermagic.package")" = "$EXPECTED_ABI"
+printf 'OpenWrt: %s\nKernel: %s\nPackage dependency hash (overridden): %s\nComputed configuration hash (original): %s\nUser-requested vendor hash workaround; hardware compatibility unverified.\n' "$OPENWRT_COMMIT" "$EXPECTED_KERNEL" "$EXPECTED_ABI" "$actual" | tee "$out/summary.txt" >> "$GITHUB_STEP_SUMMARY"
 if [[ "$actual" != "$EXPECTED_ABI" ]]; then
-  echo "::warning::Native ABI differs from device. Continue compiling; label output as a candidate, not verified compatible."
+  echo "::warning::Computed config hash differs from package hash. User-requested override is recorded; hardware compatibility remains unverified."
 fi

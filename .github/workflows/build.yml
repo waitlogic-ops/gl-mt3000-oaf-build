@@ -1,4 +1,4 @@
-name: Compile GL-MT3000 OAF from supplied configuration
+name: Compile GL-MT3000 OAF with requested vendor hash override
 on:
   workflow_dispatch:
   push:
@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: mt3000-oaf
+  group: mt3000-oaf-vendor-hash
   cancel-in-progress: false
 env:
   OPENWRT_COMMIT: f5dae5ece4805730c5e2850f8aa84765af2f6b32
@@ -51,7 +51,11 @@ jobs:
           git rev-parse HEAD > ../evidence/openwrt-commit.txt
           git -C package/OpenAppFilter rev-parse HEAD > ../evidence/oaf-commit.txt
           python3 ../scripts/config-audit.py ../configs/config_mt3000_4.9.1-op25 .config > ../evidence/config-normalization.txt
-      - name: Run unmodified native kernel configuration with release build tools
+      - name: Apply user-requested vendor hash workaround
+        run: |
+          python3 scripts/apply-vendor-hash.py openwrt
+          git -C openwrt diff -- include/kernel-defaults.mk > evidence/vendor-hash-override.patch
+      - name: Configure kernel with release build tools
         shell: bash
         run: |
           set -euo pipefail
@@ -66,8 +70,10 @@ jobs:
           make -C target/linux/mediatek -f Makefile -f "$GITHUB_WORKSPACE/scripts/audit-kernel.mk" TOPDIR="$PWD" TARGET_BUILD=1 audit-kernel-config V=s -j1 2>&1 | tee ../evidence/native-kernel-config.log
           kernel_dir=$(find build_dir -type d -name linux-6.12.94 -print -quit)
           cp "$kernel_dir/.config.set" ../evidence/kernel.config.set.native
-          cp "$kernel_dir/.vermagic" ../evidence/kernel.vermagic.native
-          git diff --exit-code -- include/kernel-defaults.mk include/kernel.mk include/package-pack.mk
+          cp "$kernel_dir/.vermagic.native" ../evidence/kernel.vermagic.native
+          cp "$kernel_dir/.vermagic" ../evidence/kernel.vermagic.package
+          python3 ../scripts/apply-vendor-hash.py . --check
+          git diff --exit-code -- include/kernel.mk include/package-pack.mk
       - name: Record native kernel ABI without blocking compilation
         run: bash scripts/abi-preflight.sh
       - uses: actions/cache@v4
@@ -87,8 +93,9 @@ jobs:
           cp "$kernel_dir/.config.set" ../evidence/kernel.config.set
           cp "$kernel_dir/.vermagic" ../evidence/kernel.vermagic
           cp "$kernel_dir/Module.symvers" ../evidence/Module.symvers
-          test "$(cat "$kernel_dir/.vermagic")" = "$(cat ../evidence/kernel-abi-preflight.txt)"
-          test "$(grep '=[ym]' "$kernel_dir/.config.set" | LC_ALL=C sort | md5sum | cut -d ' ' -f1)" = "$(cat "$kernel_dir/.vermagic")"
+          test "$(cat "$kernel_dir/.vermagic.native")" = "$(cat ../evidence/kernel-abi-preflight.txt)"
+          test "$(grep '=[ym]' "$kernel_dir/.config.set" | LC_ALL=C sort | md5sum | cut -d ' ' -f1)" = "$(cat "$kernel_dir/.vermagic.native")"
+          test "$(cat "$kernel_dir/.vermagic")" = "$EXPECTED_ABI"
           test "$(make -s -C "$kernel_dir" kernelversion)" = "$EXPECTED_KERNEL"
       - name: Compile only OAF package
         shell: bash
@@ -107,7 +114,7 @@ jobs:
       - name: Upload compiled APK with actual ABI report
         uses: actions/upload-artifact@v4
         with:
-          name: kmod-oaf-compiled-candidate-GL-MT3000
+          name: kmod-oaf-GL-MT3000-vendor-hash-test
           path: dist/
           if-no-files-found: error
       - name: Preserve compiled files for diagnosis even if verification fails

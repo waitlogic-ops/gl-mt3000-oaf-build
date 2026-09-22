@@ -1,5 +1,5 @@
-# A diagnostic target using OpenWrt's unmodified native configuration recipe.
-# This adds a target, but does not override any build or ABI variable.
+# Diagnostic/build targets using the configured OpenWrt kernel recipe.
+# The separate apply-vendor-hash.py script records the requested hash override.
 .PHONY: audit-kernel-config
 audit-kernel-config: $(STAMP_CONFIGURED)
 	@echo "Native kernel configuration: $(LINUX_DIR)"
