@@ -60,7 +60,7 @@ jobs:
           echo "ff4a38a397caa2cfe1c39e18f84ddede14878221b3593c3f2c4cfe24e3ec4c25  sdk.tar.zst" | sha256sum -c
           # Import only host utilities and compiler, never the vanilla kernel or config.
           tar --zstd -xf sdk.tar.zst "${sdk}/staging_dir"
-          cp -a "${sdk}/staging_dir/." openwrt/staging_dir/
+          cp -a --remove-destination "${sdk}/staging_dir/." openwrt/staging_dir/
           cd openwrt
           export PATH="$PWD/staging_dir/host/bin:$PATH"
           make -C target/linux/mediatek -f Makefile -f "$GITHUB_WORKSPACE/scripts/audit-kernel.mk" TOPDIR="$PWD" TARGET_BUILD=1 audit-kernel-config V=s -j1 2>&1 | tee ../evidence/native-kernel-config.log
