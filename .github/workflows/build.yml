@@ -45,11 +45,29 @@ jobs:
           echo 'CONFIG_PACKAGE_kmod-oaf=m' >> .config
           make defconfig 2>&1 | tee ../evidence/defconfig.log
           cp .config ../evidence/openwrt.config
+          cp tmp/.packageinfo ../evidence/packageinfo.txt
           cp feeds.conf ../evidence/feeds.conf
           ./scripts/diffconfig.sh > ../evidence/config.diff
           git rev-parse HEAD > ../evidence/openwrt-commit.txt
           git -C package/OpenAppFilter rev-parse HEAD > ../evidence/oaf-commit.txt
           python3 ../scripts/config-audit.py ../configs/config_mt3000_4.9.1-op25 .config > ../evidence/config-normalization.txt
+      - name: Run unmodified native kernel configuration with release build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk=openwrt-sdk-25.12.5-mediatek-filogic_gcc-14.3.0_musl.Linux-x86_64
+          curl -fL --retry 3 "https://downloads.openwrt.org/releases/25.12.5/targets/mediatek/filogic/${sdk}.tar.zst" -o sdk.tar.zst
+          echo "ff4a38a397caa2cfe1c39e18f84ddede14878221b3593c3f2c4cfe24e3ec4c25  sdk.tar.zst" | sha256sum -c
+          # Import only host utilities and compiler, never the vanilla kernel or config.
+          tar --zstd -xf sdk.tar.zst "${sdk}/staging_dir"
+          cp -a "${sdk}/staging_dir/." openwrt/staging_dir/
+          cd openwrt
+          export PATH="$PWD/staging_dir/host/bin:$PATH"
+          make -C target/linux/mediatek -f Makefile -f "$GITHUB_WORKSPACE/scripts/audit-kernel.mk" TOPDIR="$PWD" TARGET_BUILD=1 audit-kernel-config V=s -j1 2>&1 | tee ../evidence/native-kernel-config.log
+          kernel_dir=$(find build_dir -type d -name linux-6.12.94 -print -quit)
+          cp "$kernel_dir/.config.set" ../evidence/kernel.config.set.native
+          cp "$kernel_dir/.vermagic" ../evidence/kernel.vermagic.native
+          git diff --exit-code -- include/kernel-defaults.mk include/kernel.mk include/package-pack.mk
       - name: Check native kernel ABI before expensive compilation
         run: bash scripts/abi-preflight.sh
       - uses: actions/cache@v4

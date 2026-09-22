@@ -14,6 +14,8 @@ scripts/kconfig.pl 'm+' '+' "$out/kernel.config.target" /dev/null "$out/kernel.c
 grep -v INITRAMFS "$out/kernel.config.merged" > "$out/kernel.config.set.preflight"
 printf '%s\n' 'CONFIG_INITRAMFS_SOURCE=""' '# CONFIG_INITRAMFS_FORCE is not set' '# CONFIG_INITRAMFS_PRESERVE_MTIME is not set' >> "$out/kernel.config.set.preflight"
 actual=$(grep '=[ym]' "$out/kernel.config.set.preflight" | LC_ALL=C sort | md5sum | cut -d ' ' -f1)
+cmp "$out/kernel.config.set.preflight" "$out/kernel.config.set.native"
+test "$actual" = "$(cat "$out/kernel.vermagic.native")"
 printf '%s\n' "$actual" | tee "$out/kernel-abi-preflight.txt"
 printf 'OpenWrt: %s\nExpected kernel: %s\nExpected ABI: %s\nComputed ABI: %s\n' "$OPENWRT_COMMIT" "$EXPECTED_KERNEL" "$EXPECTED_ABI" "$actual" | tee "$out/summary.txt" >> "$GITHUB_STEP_SUMMARY"
 if [[ "$actual" != "$EXPECTED_ABI" ]]; then

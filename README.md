@@ -23,3 +23,9 @@ dependency rewriting, force install or installed-database modification is allowe
 `build-evidence-*` artifacts are diagnostics, **not successful installable output**.
 Only `kmod-oaf-GL-MT3000-4.9.1-op25-9469a6c8` contains an APK that passed gates.
 Hardware installation/loading remains a separate required validation step.
+
+The user-supplied ZIP was checked against the official CDN copy and is byte-for-byte
+identical (same SHA-256 above). Installation/loading will be tested by the user.
+The workflow also runs the unmodified native `Kernel/Configure/Default` recipe and
+compares its output to the preflight calculation. Release SDK host utilities and
+compiler may be used for this diagnostic; no SDK kernel configuration is imported.
